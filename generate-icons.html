@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生成应用图标</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #f5f5f5;
+        }
+        .container {
+            text-align: center;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .icon-preview {
+            margin: 20px 0;
+        }
+        canvas {
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            margin: 10px;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .instructions {
+            margin-top: 20px;
+            text-align: left;
+            color: #666;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 生成应用图标</h1>
+        
+        <div class="icon-preview">
+            <canvas id="canvas192" width="192" height="192"></canvas>
+            <br>
+            <canvas id="canvas512" width="512" height="512"></canvas>
+        </div>
+
+        <button class="btn" onclick="downloadIcons()">⬇️ 下载图标文件</button>
+        
+        <div class="instructions">
+            <h3>使用说明：</h3>
+            <ol>
+                <li>点击"下载图标文件"按钮</li>
+                <li>会下载两个文件：icon-192.png 和 icon-512.png</li>
+                <li>将这两个文件放到 mobile-work-log 文件夹</li>
+                <li>刷新应用即可使用</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // 绘制图标
+        function drawIcon(canvas, size) {
+            const ctx = canvas.getContext('2d');
+            
+            // 背景渐变
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // 圆角
+            ctx.globalCompositeOperation = 'destination-in';
+            ctx.beginPath();
+            const radius = size * 0.2;
+            ctx.roundRect(0, 0, size, size, radius);
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-over';
+            
+            // 重新绘制背景（因为上面用了 destination-in）
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, size, size, radius);
+            ctx.fill();
+            
+            // 绘制笔记本图标
+            const padding = size * 0.2;
+            const notebookWidth = size - padding * 2;
+            const notebookHeight = size * 0.6;
+            const notebookX = padding;
+            const notebookY = (size - notebookHeight) / 2;
+            
+            // 笔记本背景
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.roundRect(notebookX, notebookY, notebookWidth, notebookHeight, size * 0.05);
+            ctx.fill();
+            
+            // 笔记本线条
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = size * 0.008;
+            const lineSpacing = notebookHeight / 6;
+            for (let i = 1; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(notebookX + size * 0.1, notebookY + lineSpacing * i);
+                ctx.lineTo(notebookX + notebookWidth - size * 0.1, notebookY + lineSpacing * i);
+                ctx.stroke();
+            }
+            
+            // 左侧装订线
+            ctx.fillStyle = '#ff6b6b';
+            const bindingWidth = size * 0.03;
+            for (let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.arc(
+                    notebookX + size * 0.08,
+                    notebookY + notebookHeight * 0.25 + i * notebookHeight * 0.25,
+                    bindingWidth,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+            
+            // 笔图标
+            const penSize = size * 0.15;
+            const penX = notebookX + notebookWidth - penSize - size * 0.05;
+            const penY = notebookY + notebookHeight - penSize - size * 0.05;
+            
+            ctx.fillStyle = '#ffd93d';
+            ctx.beginPath();
+            ctx.moveTo(penX, penY + penSize);
+            ctx.lineTo(penX + penSize * 0.3, penY);
+            ctx.lineTo(penX + penSize, penY + penSize * 0.3);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // 绘制两个尺寸的图标
+        drawIcon(document.getElementById('canvas192'), 192);
+        drawIcon(document.getElementById('canvas512'), 512);
+
+        // 下载图标
+        function downloadIcons() {
+            // 下载 192x192
+            const canvas192 = document.getElementById('canvas192');
+            canvas192.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'icon-192.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            // 下载 512x512
+            setTimeout(() => {
+                const canvas512 = document.getElementById('canvas512');
+                canvas512.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'icon-512.png';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                });
+            }, 500);
+        }
+    </script>
+</body>
+</html>

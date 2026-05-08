@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="工作日志">
+    <title>工作日志</title>
+    <link rel="manifest" href="mobile-manifest.json">
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding-bottom: 70px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            padding: 15px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+            line-height: 1.6;
+        }
+
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            margin-top: 10px;
+        }
+
+        .btn-danger {
+            background: #ff4757;
+            color: white;
+            padding: 8px 16px;
+            font-size: 14px;
+            width: auto;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            width: auto;
+        }
+
+        .log-item {
+            background: white;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+        }
+
+        .log-date {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-bottom: 10px;
+        }
+
+        .log-content {
+            color: #333;
+            line-height: 1.8;
+            font-size: 0.95rem;
+        }
+
+        .log-content div {
+            margin-bottom: 8px;
+            padding-left: 12px;
+        }
+
+        .log-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+            justify-content: flex-end;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            display: flex;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 100;
+        }
+
+        .tab-item {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            background: none;
+            font-size: 0.85rem;
+            color: #999;
+        }
+
+        .tab-item.active {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab-icon {
+            font-size: 1.5rem;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 1000;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateX(-50%) translateY(-100px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(-50%) translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📝 工作日志</h1>
+        <p id="current-date"></p>
+        <p style="font-size: 0.75rem; opacity: 0.8; margin-top: 5px;">v2.0 - 支持编辑功能</p>
+    </div>
+
+    <div class="container">
+        <!-- 添加日志页面 -->
+        <div id="add-page" class="page">
+            <div class="card">
+                <h3 style="margin-bottom: 15px; color: #333;">✏️ 添加工作日志</h3>
+                <div class="form-group">
+                    <label for="main-work">1️⃣ 完成主要工作</label>
+                    <textarea id="main-work" placeholder="今天完成的主要工作内容..." oninput="autoNumber(this)"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="thoughts">2️⃣ 主要思考收获</label>
+                    <textarea id="thoughts" placeholder="今天的思考、学习心得、收获..." oninput="autoNumber(this)"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="problems">3️⃣ 待解决问题</label>
+                    <textarea id="problems" placeholder="遇到的问题、需要后续解决的事项..." oninput="autoNumber(this)"></textarea>
+                </div>
+
+                <button class="btn btn-primary" onclick="saveLog()">💾 保存日志</button>
+                <button class="btn btn-secondary" onclick="clearForm()">🔄 清空表单</button>
+            </div>
+        </div>
+
+        <!-- 查看日志页面 -->
+        <div id="list-page" class="page hidden">
+            <div id="log-list"></div>
+        </div>
+
+        <!-- 统计页面 -->
+        <div id="stats-page" class="page hidden">
+            <div class="card">
+                <h3 style="margin-bottom: 15px; color: #333;">📊 统计概览</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="total-count">0</div>
+                        <div class="stat-label">总记录数</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="today-count">0</div>
+                        <div class="stat-label">今日记录</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="week-count">0</div>
+                        <div class="stat-label">本周记录</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="month-count">0</div>
+                        <div class="stat-label">本月记录</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 15px; color: #333;">📤 导出数据</h3>
+                <button class="btn btn-primary" onclick="exportToExcel()" style="margin-bottom: 10px;">
+                    📊 导出为 Excel
+                </button>
+                <button class="btn btn-secondary" onclick="exportToTXT()">
+                    📄 导出为 TXT
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部导航栏 -->
+    <div class="tab-bar">
+        <button class="tab-item active" onclick="switchTab('add')">
+            <span class="tab-icon">✏️</span>
+            <span>记录</span>
+        </button>
+        <button class="tab-item" onclick="switchTab('list')">
+            <span class="tab-icon">📋</span>
+            <span>查看</span>
+        </button>
+        <button class="tab-item" onclick="switchTab('stats')">
+            <span class="tab-icon">📊</span>
+            <span>统计</span>
+        </button>
+    </div>
+
+    <script src="mobile-app.js"></script>
+    <script>
+        // 强制清除旧缓存
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) {
+                    if (name !== 'work-log-v2') {
+                        caches.delete(name);
+                    }
+                }
+            });
+        }
+        
+        // 注册 Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('SW registered:', registration);
+                        // 检查更新
+                        registration.update();
+                    })
+                    .catch(error => {
+                        console.log('SW registration failed:', error);
+                    });
+            });
+        }
+
+        // 显示安装提示（仅 Android）
+        let deferredPrompt;
+        const installButton = document.createElement('button');
+        installButton.id = 'install-btn';
+        installButton.className = 'btn btn-primary';
+        installButton.style.cssText = 'position: fixed; bottom: 80px; right: 20px; width: auto; padding: 12px 20px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); z-index: 99; display: none;';
+        installButton.innerHTML = '📲 安装到主屏幕';
+        document.body.appendChild(installButton);
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installButton.style.display = 'block';
+        });
+
+        installButton.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`User response to the install prompt: ${outcome}`);
+                deferredPrompt = null;
+                installButton.style.display = 'none';
+            }
+        });
+
+        // 监听安装成功
+        window.addEventListener('appinstalled', () => {
+            console.log('App installed successfully');
+            installButton.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
