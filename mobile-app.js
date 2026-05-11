@@ -99,22 +99,26 @@ function switchTab(page) {
 
 // 保存日志
 function saveLog() {
+    const logDate = document.getElementById('log-date').value; // 使用选择的日期
     const mainWork = document.getElementById('main-work').value.trim();
     const thoughts = document.getElementById('thoughts').value.trim();
     const problems = document.getElementById('problems').value.trim();
+    
+    if (!logDate) {
+        showToast('⚠️ 请选择日志日期');
+        return;
+    }
     
     if (!mainWork && !thoughts && !problems) {
         showToast('⚠️ 请至少填写一项内容');
         return;
     }
     
-    const today = new Date().toISOString().split('T')[0];
-    
     if (editingLogId) {
         // 编辑模式：更新现有日志
         const updatedLog = {
             id: editingLogId,
-            date: today,
+            date: logDate,
             mainWork: mainWork,
             thoughts: thoughts,
             problems: problems,
@@ -132,7 +136,7 @@ function saveLog() {
         // 新增模式：创建新日志
         const newLog = {
             id: generateId(),
-            date: today,
+            date: logDate,
             mainWork: mainWork,
             thoughts: thoughts,
             problems: problems,
@@ -153,6 +157,7 @@ function saveLog() {
 
 // 清空表单
 function clearForm() {
+    document.getElementById('log-date').value = new Date().toISOString().split('T')[0];
     document.getElementById('main-work').value = '';
     document.getElementById('thoughts').value = '';
     document.getElementById('problems').value = '';
@@ -243,6 +248,7 @@ function editLog(id) {
     }
     
     // 填充表单
+    document.getElementById('log-date').value = log.date;
     document.getElementById('main-work').value = log.mainWork || '';
     document.getElementById('thoughts').value = log.thoughts || '';
     document.getElementById('problems').value = log.problems || '';
@@ -253,7 +259,7 @@ function editLog(id) {
     // 更新表单标题和按钮
     const formTitle = document.querySelector('#add-page .card h3');
     if (formTitle) {
-        formTitle.textContent = '✏️ 编辑工作日志';
+        formTitle.textContent = `✏️ 编辑 ${formatDate(log.date)} 的日志`;
     }
     const submitBtn = document.querySelector('#add-page .btn-primary');
     if (submitBtn) {
@@ -388,6 +394,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
     document.getElementById('current-date').textContent = dateStr;
+    
+    // 设置默认日期为今天
+    document.getElementById('log-date').value = now.toISOString().split('T')[0];
     
     // 默认显示添加页面
     switchTab('add');
