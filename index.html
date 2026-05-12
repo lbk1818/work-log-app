@@ -11,6 +11,8 @@
     <link rel="manifest" href="mobile-manifest.json">
     <!-- SheetJS for Excel export -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Cloud Sync -->
+    <script src="cloud-sync.js"></script>
     <style>
         * {
             margin: 0;
@@ -338,11 +340,17 @@
 
             <div class="card">
                 <h3 style="margin-bottom: 15px; color: #333;">📤 导出数据</h3>
+                <button class="btn btn-primary" onclick="Storage.syncNow()" style="margin-bottom: 10px;">
+                     手动同步
+                </button>
+                <button class="btn btn-secondary" onclick="Storage.refreshFromCloud()" style="margin-bottom: 10px;">
+                    ⬇️ 从云端刷新
+                </button>
                 <button class="btn btn-primary" onclick="exportToExcel()" style="margin-bottom: 10px;">
                     📊 导出为 Excel
                 </button>
                 <button class="btn btn-secondary" onclick="exportToTXT()">
-                    📄 导出为 TXT
+                     导出为 TXT
                 </button>
             </div>
         </div>

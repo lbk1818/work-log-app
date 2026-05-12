@@ -1,32 +1,88 @@
-// 数据存储
+// 数据存储 - 混合模式：本地缓存 + 云端同步
 const Storage = {
-    getLogs() {
-        const data = localStorage.getItem('mobile_work_logs');
-        return data ? JSON.parse(data) : [];
-    },
+    localCache: [],
+    isInitialized: false,
 
-    saveLogs(logs) {
-        localStorage.setItem('mobile_work_logs', JSON.stringify(logs));
-    },
-
-    addLog(log) {
-        const logs = this.getLogs();
-        logs.unshift(log);
-        this.saveLogs(logs);
-    },
-
-    updateLog(updatedLog) {
-        const logs = this.getLogs();
-        const index = logs.findIndex(log => log.id === updatedLog.id);
-        if (index !== -1) {
-            logs[index] = updatedLog;
-            this.saveLogs(logs);
+    // 初始化：从云端加载数据
+    async init() {
+        try {
+            const cloudLogs = await CloudStorage.fetchLogs();
+            this.localCache = cloudLogs;
+            // 保存到本地作为缓存
+            localStorage.setItem('mobile_work_logs', JSON.stringify(cloudLogs));
+            this.isInitialized = true;
+            console.log('从云端同步完成');
+            return true;
+        } catch (error) {
+            console.error('初始化失败，使用本地缓存:', error);
+            // 如果云端获取失败，使用本地缓存
+            const localData = localStorage.getItem('mobile_work_logs');
+            this.localCache = localData ? JSON.parse(localData) : [];
+            this.isInitialized = true;
+            return false;
         }
     },
 
-    deleteLog(id) {
-        const logs = this.getLogs().filter(log => log.id !== id);
-        this.saveLogs(logs);
+    getLogs() {
+        return this.localCache;
+    },
+
+    saveLocal() {
+        localStorage.setItem('mobile_work_logs', JSON.stringify(this.localCache));
+    },
+
+    async addLog(log) {
+        this.localCache.unshift(log);
+        this.saveLocal();
+        // 异步上传到云端
+        CloudStorage.uploadLog(log).then(success => {
+            if (!success) {
+                console.warn('云端上传失败，数据已保存到本地');
+            }
+        });
+    },
+
+    async updateLog(updatedLog) {
+        const index = this.localCache.findIndex(log => log.id === updatedLog.id);
+        if (index !== -1) {
+            this.localCache[index] = updatedLog;
+            this.saveLocal();
+            // 异步更新云端
+            CloudStorage.updateLog(updatedLog);
+        }
+    },
+
+    async deleteLog(id) {
+        this.localCache = this.localCache.filter(log => log.id !== id);
+        this.saveLocal();
+        // 异步删除云端
+        CloudStorage.deleteLog(id);
+    },
+
+    // 手动同步
+    async syncNow() {
+        showToast('🔄 正在同步...');
+        const success = await CloudStorage.syncAllLogs(this.localCache);
+        if (success) {
+            showToast('✅ 同步完成');
+            renderLogs();
+        } else {
+            showToast('❌ 同步失败');
+        }
+    },
+
+    // 从云端刷新
+    async refreshFromCloud() {
+        showToast('🔄 正在刷新...');
+        const cloudLogs = await CloudStorage.fetchLogs();
+        if (cloudLogs.length > 0 || this.localCache.length === 0) {
+            this.localCache = cloudLogs;
+            this.saveLocal();
+            showToast('✅ 刷新完成');
+            renderLogs();
+        } else {
+            showToast('⚠️ 云端无数据');
+        }
     }
 };
 
@@ -393,7 +449,7 @@ function downloadFile(content, filename, mimeType) {
 }
 
 // 初始化
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     // 显示当前日期
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
@@ -401,6 +457,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 设置默认日期为今天
     document.getElementById('log-date').value = now.toISOString().split('T')[0];
+    
+    // 初始化云端同步
+    await Storage.init();
     
     // 默认显示添加页面
     switchTab('add');
