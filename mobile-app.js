@@ -177,6 +177,10 @@ function clearForm() {
 // 渲染日志列表
 function renderLogs() {
     const logs = Storage.getLogs();
+    
+    // 按日期降序排序（最新的在前）
+    logs.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
     const logListDiv = document.getElementById('log-list');
     
     if (logs.length === 0) {
