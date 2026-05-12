@@ -1,5 +1,5 @@
 // Service Worker - 支持离线使用
-const CACHE_NAME = 'work-log-v2';
+const CACHE_NAME = 'work-log-v3';
 const urlsToCache = [
     './',
     './index.html',
