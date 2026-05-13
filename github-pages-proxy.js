@@ -3,14 +3,17 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     
-    // 代理 GitHub Pages
-    const githubUrl = `https://lbk1818.github.io/work-log-app/${url.pathname}`;
+    // 代理 GitHub Pages（添加时间戳避免缓存问题）
+    const githubUrl = `https://lbk1818.github.io/work-log-app/${url.pathname}${url.search}`;
     
     try {
       const response = await fetch(githubUrl, {
         headers: {
-          'User-Agent': request.headers.get('User-Agent') || ''
-        }
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
+        },
+        redirect: 'follow'
       });
       
       // 添加 CORS 和缓存头
@@ -23,7 +26,7 @@ export default {
         headers: newHeaders
       });
     } catch (error) {
-      return new Response('Error: ' + error.message, { status: 500 });
+      return new Response(`Error: ${error.message}`, { status: 500 });
     }
   }
 };
