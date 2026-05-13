@@ -336,11 +336,12 @@ function editLog(id) {
 function renderStats() {
     const logs = Storage.getLogs();
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const todayStr = now.toISOString().split('T')[0]; // "YYYY-MM-DD" 格式
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     
-    const todayCount = logs.filter(log => new Date(log.date).getTime() === today.getTime()).length;
+    // 使用字符串比较，避免时区问题
+    const todayCount = logs.filter(log => log.date === todayStr).length;
     const weekCount = logs.filter(log => new Date(log.date) >= weekAgo).length;
     const monthCount = logs.filter(log => new Date(log.date) >= monthAgo).length;
     
