@@ -1,7 +1,7 @@
 // Cloudflare Sync API 配置
 const SYNC_CONFIG = {
-    // 替换为您的 Cloudflare Worker URL
-    apiEndpoint:'https://work-log-sync.1349880215.workers.dev',
+    // Cloudflare Worker URL（已配置）
+    apiEndpoint: 'https://work-log-sync.1349880215.workers.dev',
     
     // 用户标识（多设备共享同一个 ID）
     userId: 'work-log-user-001'
