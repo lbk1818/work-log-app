@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作日志 - 产品介绍</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* 头部区域 */
+        .hero {
+            text-align: center;
+            padding: 60px 20px;
+            color: white;
+        }
+
+        .hero h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .hero .subtitle {
+            font-size: 1.3em;
+            margin-bottom: 30px;
+            opacity: 0.95;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        /* 主按钮 */
+        .cta-button {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 15px 40px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-size: 1.2em;
+            font-weight: bold;
+            margin: 20px 10px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .cta-button.secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        /* 功能特性区域 */
+        .features {
+            background: white;
+            border-radius: 20px;
+            padding: 50px 30px;
+            margin: 40px 0;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 40px;
+            color: #667eea;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .feature-card {
+            padding: 30px;
+            border-radius: 15px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            transition: transform 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .feature-card h3 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+            color: #667eea;
+        }
+
+        .feature-card p {
+            color: #666;
+            line-height: 1.8;
+        }
+
+        /* 技术栈区域 */
+        .tech-stack {
+            background: white;
+            border-radius: 20px;
+            padding: 50px 30px;
+            margin: 40px 0;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .tech-stack h2 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 40px;
+            color: #764ba2;
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .tech-item {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .tech-item .icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .tech-item h4 {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .tech-item p {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        /* 使用流程 */
+        .how-to-use {
+            background: white;
+            border-radius: 20px;
+            padding: 50px 30px;
+            margin: 40px 0;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .how-to-use h2 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 40px;
+            color: #667eea;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+
+        .step {
+            text-align: center;
+            padding: 30px;
+        }
+
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 0 auto 20px;
+        }
+
+        .step h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .step p {
+            color: #666;
+        }
+
+        /* 页脚 */
+        .footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+            opacity: 0.9;
+        }
+
+        .footer a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2em;
+            }
+
+            .hero .subtitle {
+                font-size: 1em;
+            }
+
+            .cta-button {
+                display: block;
+                margin: 10px auto;
+                width: 80%;
+            }
+
+            .feature-grid,
+            .tech-grid,
+            .steps {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 动画效果 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .feature-card,
+        .tech-item,
+        .step {
+            animation: fadeInUp 0.6s ease-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部区域 -->
+        <section class="hero">
+            <h1>📝 工作日志</h1>
+            <p class="subtitle">简洁高效的工作记录工具<br>随时随地记录您的工作点滴</p>
+            <span class="version-badge">v7.0 - 多用户 Supabase 版</span>
+            <div style="margin-top: 30px;">
+                <a href="https://work-log-app.pages.dev" class="cta-button" target="_blank">🚀 立即使用</a>
+                <a href="#features" class="cta-button secondary">📖 了解更多</a>
+            </div>
+        </section>
+
+        <!-- 功能特性 -->
+        <section class="features" id="features">
+            <h2>✨ 核心功能</h2>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">👤</div>
+                    <h3>多用户支持</h3>
+                    <p>每个用户拥有独立账号，数据完全隔离，保护隐私安全</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">☁️</div>
+                    <h3>云端同步</h3>
+                    <p>数据实时同步到云端，换设备也不怕丢失，随时随地访问</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3>移动端优化</h3>
+                    <p>PWA 技术，可安装到手机主屏幕，像原生 App 一样流畅</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"></div>
+                    <h3>数据统计</h3>
+                    <p>自动统计今日、本周、本月记录数量，清晰掌握工作进度</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon"></div>
+                    <h3>日志导出</h3>
+                    <p>支持导出为 Excel 文件，方便备份和离线查看</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🌙</div>
+                    <h3>睡前提醒</h3>
+                    <p>晚上 9-11 点智能提醒，帮助您养成记录好习惯</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 技术栈 -->
+        <section class="tech-stack">
+            <h2>🛠️ 技术架构</h2>
+            <div class="tech-grid">
+                <div class="tech-item">
+                    <div class="icon"></div>
+                    <h4>PWA</h4>
+                    <p>渐进式 Web 应用<br>可安装到手机主屏幕，像原生 App 一样使用</p>
+                </div>
+                <div class="tech-item">
+                    <div class="icon"></div>
+                    <h4>Cloudflare Pages</h4>
+                    <p>全球 CDN 加速<br>静态文件托管，HTTPS 自动加密</p>
+                </div>
+                <div class="tech-item">
+                    <div class="icon"></div>
+                    <h4>Supabase</h4>
+                    <p>PostgreSQL 数据库<br>用户认证、数据存储、云端同步</p>
+                </div>
+                <div class="tech-item">
+                    <div class="icon"></div>
+                    <h4>Service Worker</h4>
+                    <p>后台服务和缓存<br>离线访问、资源缓存、PWA 更新检测</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 使用流程 -->
+        <section class="how-to-use">
+            <h2>📱 快速上手</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>访问网站</h3>
+                    <p>打开浏览器访问<br>https://work-log-app.pages.dev</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>注册账号</h3>
+                    <p>创建您的个人账号<br>数据安全隔离</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>安装到手机</h3>
+                    <p>点击"添加到主屏幕"<br>像 App 一样使用</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>开始记录</h3>
+                    <p>随时随地记录工作<br>数据云端同步</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <p>© 2026 工作日志 App | 基于 Supabase + Cloudflare Pages 构建</p>
+            <p style="margin-top: 10px;">
+                <a href="https://work-log-app.pages.dev" target="_blank">立即体验 →</a>
+            </p>
+        </footer>
+    </div>
+</body>
+</html>

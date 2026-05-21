@@ -1,23 +1,50 @@
-// 数据存储 - 混合模式：本地缓存 + 云端同步
+// 数据存储 - 支持多用户 Supabase 云端存储
 const Storage = {
     localCache: [],
     isInitialized: false,
 
-    // 初始化：从云端加载数据
+    // 初始化：加载用户数据
     async init() {
         try {
-            const cloudLogs = await CloudStorage.fetchLogs();
-            this.localCache = cloudLogs;
-            // 保存到本地作为缓存
-            localStorage.setItem('mobile_work_logs', JSON.stringify(cloudLogs));
-            this.isInitialized = true;
-            console.log('从云端同步完成');
-            return true;
+            // 如果没有登录，不加载数据
+            if (!UserAuth.isLoggedIn()) {
+                this.localCache = [];
+                this.isInitialized = true;
+                return false;
+            }
+
+            const userId = UserAuth.getUserId();
+            
+            // 从 Supabase 获取数据
+            const response = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/logs?user_id=eq.${userId}&order=date.desc,created_at.desc`, {
+                headers: {
+                    'apikey': SUPABASE_CONFIG.key,
+                    'Authorization': `Bearer ${SUPABASE_CONFIG.key}`
+                }
+            });
+            
+            const logs = await response.json();
+            
+            if (logs && Array.isArray(logs)) {
+                this.localCache = logs.map(log => ({
+                    id: log.id,
+                    date: log.date,
+                    mainWork: log.main_work || '',
+                    thoughts: log.thoughts || '',
+                    problems: log.problems || '',
+                    createdAt: new Date(log.created_at).getTime()
+                }));
+                this.isInitialized = true;
+                console.log('初始化完成，用户数据量:', this.localCache.length);
+                return true;
+            } else {
+                this.localCache = [];
+                this.isInitialized = true;
+                return false;
+            }
         } catch (error) {
-            console.error('初始化失败，使用本地缓存:', error);
-            // 如果云端获取失败，使用本地缓存
-            const localData = localStorage.getItem('mobile_work_logs');
-            this.localCache = localData ? JSON.parse(localData) : [];
+            console.error('初始化失败:', error);
+            this.localCache = [];
             this.isInitialized = true;
             return false;
         }
@@ -27,62 +54,67 @@ const Storage = {
         return this.localCache;
     },
 
-    saveLocal() {
-        localStorage.setItem('mobile_work_logs', JSON.stringify(this.localCache));
+    // 保存到 Supabase（逐条更新，避免数据丢失）
+    async saveToSupabase() {
+        if (!UserAuth.isLoggedIn()) return;
+        
+        const userId = UserAuth.getUserId();
+        
+        try {
+            // 逐条插入或更新日志（使用 upsert）
+            if (this.localCache.length > 0) {
+                const logsData = this.localCache.map(log => ({
+                    id: log.id,
+                    user_id: userId,
+                    date: log.date,
+                    main_work: log.mainWork || '',
+                    thoughts: log.thoughts || '',
+                    problems: log.problems || '',
+                    created_at: new Date(log.createdAt).toISOString(),
+                    updated_at: log.updatedAt ? new Date(log.updatedAt).toISOString() : new Date().toISOString()
+                }));
+                
+                // 使用 upsert 模式：存在则更新，不存在则插入
+                await fetch(`${SUPABASE_CONFIG.url}/rest/v1/logs`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': SUPABASE_CONFIG.key,
+                        'Authorization': `Bearer ${SUPABASE_CONFIG.key}`,
+                        'Prefer': 'resolution=merge-duplicates'  // upsert 模式
+                    },
+                    body: JSON.stringify(logsData)
+                });
+            }
+        } catch (error) {
+            console.error('保存到 Supabase 失败:', error);
+        }
     },
 
-    async addLog(log) {
+    async saveLog(log) {
         this.localCache.unshift(log);
-        this.saveLocal();
-        // 异步上传到云端
-        CloudStorage.uploadLog(log).then(success => {
-            if (!success) {
-                console.warn('云端上传失败，数据已保存到本地');
-            }
-        });
+        await this.saveToSupabase();
     },
 
     async updateLog(updatedLog) {
         const index = this.localCache.findIndex(log => log.id === updatedLog.id);
         if (index !== -1) {
             this.localCache[index] = updatedLog;
-            this.saveLocal();
-            // 异步更新云端
-            CloudStorage.updateLog(updatedLog);
+            await this.saveToSupabase();
         }
     },
 
     async deleteLog(id) {
         this.localCache = this.localCache.filter(log => log.id !== id);
-        this.saveLocal();
-        // 异步删除云端
-        CloudStorage.deleteLog(id);
+        await this.saveToSupabase();
     },
 
-    // 手动同步
-    async syncNow() {
-        showToast('🔄 正在同步...');
-        const success = await CloudStorage.syncAllLogs(this.localCache);
-        if (success) {
-            showToast('✅ 同步完成');
-            renderLogs();
-        } else {
-            showToast('❌ 同步失败');
-        }
-    },
-
-    // 从云端刷新
+    // 从 Supabase 刷新数据
     async refreshFromCloud() {
-        showToast('🔄 正在刷新...');
-        const cloudLogs = await CloudStorage.fetchLogs();
-        if (cloudLogs.length > 0 || this.localCache.length === 0) {
-            this.localCache = cloudLogs;
-            this.saveLocal();
-            showToast('✅ 刷新完成');
-            renderLogs();
-        } else {
-            showToast('⚠️ 云端无数据');
-        }
+        if (!UserAuth.isLoggedIn()) return;
+        
+        await this.init();
+        console.log('刷新成功，数据量:', this.localCache.length);
     }
 };
 
@@ -199,7 +231,7 @@ function saveLog() {
             createdAt: Date.now()
         };
         
-        Storage.addLog(newLog);
+        Storage.saveLog(newLog);
         showToast('✅ 日志已保存');
     }
     
@@ -211,9 +243,18 @@ function saveLog() {
     }, 500);
 }
 
+// 获取本地日期（YYYY-MM-DD 格式）
+function getLocalDate() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // 清空表单
 function clearForm() {
-    document.getElementById('log-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('log-date').value = getLocalDate();
     document.getElementById('main-work').value = '';
     document.getElementById('thoughts').value = '';
     document.getElementById('problems').value = '';
@@ -336,7 +377,8 @@ function editLog(id) {
 function renderStats() {
     const logs = Storage.getLogs();
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0]; // "YYYY-MM-DD" 格式
+    // 获取今天的日期（本地时间）
+    const todayStr = getLocalDate();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     
@@ -349,37 +391,6 @@ function renderStats() {
     document.getElementById('today-count').textContent = todayCount;
     document.getElementById('week-count').textContent = weekCount;
     document.getElementById('month-count').textContent = monthCount;
-}
-
-// 导出为 TXT
-function exportToTXT() {
-    const logs = Storage.getLogs();
-    if (logs.length === 0) {
-        showToast('⚠️ 暂无数据可导出');
-        return;
-    }
-    
-    let content = '工作日志导出\n';
-    content += `导出时间：${new Date().toLocaleString('zh-CN')}\n`;
-    content += `总记录数：${logs.length}\n`;
-    content += '='.repeat(50) + '\n\n';
-    
-    logs.forEach((log, index) => {
-        content += `【第${index + 1}条】${formatDate(log.date)}\n`;
-        if (log.mainWork) {
-            content += `\n1️⃣ 完成主要工作：\n${log.mainWork}\n`;
-        }
-        if (log.thoughts) {
-            content += `\n2️⃣ 主要思考收获：\n${log.thoughts}\n`;
-        }
-        if (log.problems) {
-            content += `\n3️⃣ 待解决问题：\n${log.problems}\n`;
-        }
-        content += '\n' + '-'.repeat(50) + '\n\n';
-    });
-    
-    downloadFile(content, `工作日志_${new Date().toISOString().split('T')[0]}.txt`, 'text/plain');
-    showToast('✅ TXT 导出成功');
 }
 
 // 导出为 Excel
@@ -451,23 +462,152 @@ function downloadFile(content, filename, mimeType) {
 
 // 初始化
 document.addEventListener('DOMContentLoaded', async function() {
+    console.log('=== 页面初始化开始 ===');
+    console.log('UserAuth 是否存在:', typeof UserAuth !== 'undefined');
+    
     // 显示当前日期
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
     document.getElementById('current-date').textContent = dateStr;
     
-    // 设置默认日期为今天
-    document.getElementById('log-date').value = now.toISOString().split('T')[0];
+    // 初始化用户认证
+    UserAuth.init();
     
-    // 初始化云端同步
+    console.log('用户登录状态:', UserAuth.isLoggedIn());
+    console.log('当前用户:', UserAuth.currentUser);
+    
+    // 检查用户登录状态
+    if (UserAuth.isLoggedIn()) {
+        console.log('已登录，显示主应用');
+        // 已登录，显示主应用
+        showMainApp();
+    } else {
+        console.log('未登录，显示登录页面');
+        // 未登录，显示登录页面
+        showAuthPage();
+    }
+    
+    console.log('=== 页面初始化完成 ===');
+});
+
+// 显示主应用
+async function showMainApp() {
+    // 隐藏登录页面
+    document.getElementById('auth-page').style.display = 'none';
+    
+    // 显示用户信息
+    const username = UserAuth.getUsername();
+    document.getElementById('user-info').textContent = `用户: ${username}`;
+    document.getElementById('logout-btn').style.display = 'block';
+    
+    // 设置默认日期为今天（本地时间）
+    document.getElementById('log-date').value = getLocalDate();
+    
+    // 初始化：加载用户数据
     await Storage.init();
     
     // 默认显示添加页面
-    switchTab('add');
+    document.querySelectorAll('.page').forEach(p => {
+        if (p.id !== 'auth-page') {
+            p.classList.add('hidden');
+        }
+    });
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    document.getElementById('add-page').classList.remove('hidden');
+    document.querySelector('.tab-item').classList.add('active');
+    currentPage = 'add';
     
     // 检查是否需要备份提醒
     checkBackupReminder();
-});
+    
+    // 设置睡前提醒
+    setupBedtimeReminder();
+}
+
+// 显示登录页面
+function showAuthPage() {
+    // 隐藏主应用
+    document.getElementById('main-container').style.display = 'none';
+    document.querySelector('.tab-bar').style.display = 'none';
+    document.getElementById('logout-btn').style.display = 'none';
+    document.getElementById('user-info').textContent = 'v7.0 - 多用户 Supabase 版';
+    
+    // 显示登录页面
+    document.getElementById('auth-page').style.display = 'block';
+}
+
+// 处理登录
+async function handleLogin() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const messageEl = document.getElementById('auth-message');
+    
+    if (!username || !password) {
+        messageEl.textContent = '请输入用户名和密码';
+        return;
+    }
+    
+    messageEl.textContent = '登录中...';
+    messageEl.style.color = '#666';
+    
+    const result = await UserAuth.login(username, password);
+    
+    if (result.success) {
+        messageEl.textContent = '✅ 登录成功，正在跳转...';
+        messageEl.style.color = '#27ae60';
+        
+        // 重新加载页面以初始化应用
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    } else {
+        messageEl.textContent = result.message;
+        messageEl.style.color = '#e74c3c';
+    }
+}
+
+// 处理注册
+async function handleRegister() {
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value;
+    const messageEl = document.getElementById('auth-message');
+    
+    if (!username || !password) {
+        messageEl.textContent = '请输入用户名和密码';
+        return;
+    }
+    
+    if (password.length < 4) {
+        messageEl.textContent = '密码至少需要 4 位';
+        return;
+    }
+    
+    messageEl.textContent = '注册中...';
+    messageEl.style.color = '#666';
+    
+    const result = await UserAuth.register(username, password);
+    
+    if (result.success) {
+        messageEl.textContent = '✅ 注册成功，自动登录中...';
+        messageEl.style.color = '#27ae60';
+        
+        // 重新加载页面以初始化应用
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    } else {
+        messageEl.textContent = result.message;
+        messageEl.style.color = '#e74c3c';
+    }
+}
+
+// 处理登出
+function handleLogout() {
+    if (confirm('确定要退出登录吗？')) {
+        UserAuth.logout();
+        location.reload();
+    }
+}
 
 // 检查备份提醒
 function checkBackupReminder() {
@@ -485,6 +625,96 @@ function checkBackupReminder() {
             }, 2000);
         }
     }
+}
+
+// 睡前提醒功能
+function setupBedtimeReminder() {
+    // 获取上次提醒日期
+    const lastReminder = localStorage.getItem('last_bedtime_reminder');
+    const today = getLocalDate();
+    
+    // 如果今天已经提醒过，不再提醒
+    if (lastReminder === today) return;
+    
+    // 检查是否有今天的日志
+    const logs = Storage.getLogs();
+    const hasTodayLog = logs.some(log => log.date === today);
+    
+    // 如果今天还没有日志，设置提醒
+    if (!hasTodayLog) {
+        // 获取当前时间
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        
+        // 晚上 9 点到 11 点之间提醒
+        if (currentHour >= 21 && currentHour < 23) {
+            sendBedtimeNotification();
+            localStorage.setItem('last_bedtime_reminder', today);
+        }
+        
+        // 如果现在是晚上 9 点前，设置定时器到 9 点提醒
+        if (currentHour < 21) {
+            const reminderTime = new Date();
+            reminderTime.setHours(21, 0, 0, 0);
+            const timeToReminder = reminderTime.getTime() - now.getTime();
+            
+            if (timeToReminder > 0 && timeToReminder < 12 * 60 * 60 * 1000) { // 12小时内
+                setTimeout(() => {
+                    const logs = Storage.getLogs();
+                    const hasTodayLog = logs.some(log => log.date === today);
+                    if (!hasTodayLog) {
+                        sendBedtimeNotification();
+                        localStorage.setItem('last_bedtime_reminder', today);
+                    }
+                }, timeToReminder);
+            }
+        }
+    }
+}
+
+// 发送睡前通知
+function sendBedtimeNotification() {
+    // 先显示 Toast 提醒
+    showToast('🌙 睡前提醒：别忘了记录今天的工作日志哦！');
+    
+    // 尝试发送系统通知
+    if ('Notification' in window) {
+        // 如果还没有权限，请求权限
+        if (Notification.permission === 'default') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    createNotification();
+                }
+            });
+        } else if (Notification.permission === 'granted') {
+            // 已有权限，直接发送
+            createNotification();
+        }
+    }
+}
+
+// 创建系统通知
+function createNotification() {
+    const notification = new Notification('🌙 工作日志提醒', {
+        body: '睡前别忘了记录今天的工作日志哦！',
+        icon: 'icon-192.png',
+        badge: 'icon-192.png',
+        tag: 'bedtime-reminder',
+        requireInteraction: true, // 保持通知直到用户点击
+        silent: false
+    });
+    
+    // 点击通知时打开应用
+    notification.onclick = function() {
+        window.focus();
+        notification.close();
+    };
+    
+    // 10 秒后自动关闭
+    setTimeout(() => {
+        notification.close();
+    }, 10000);
 }
 
 // 导出时更新备份时间

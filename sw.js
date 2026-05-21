@@ -1,5 +1,5 @@
 // Service Worker - 支持离线使用
-const CACHE_NAME = 'work-log-cache'; // 固定名称，不再每次改版本号
+const CACHE_NAME = 'work-log-v6.0-cache'; // 更新版本号强制刷新缓存
 const urlsToCache = [
     './',
     './index.html',
