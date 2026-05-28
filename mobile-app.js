@@ -852,11 +852,11 @@ function checkReminderStatus() {
     if (reminderEnabled === 'true') {
         reminderCard.classList.add('active');
         reminderTitle.textContent = '✅ 睡前提醒已开启';
-        reminderDesc.textContent = '点击重新设置提醒';
+        reminderDesc.textContent = '每晚21:00系统日历自动提醒（点击查看教程）';
     } else {
         reminderCard.classList.remove('active');
-        reminderTitle.textContent = '开启睡前提醒';
-        reminderDesc.textContent = '添加到系统日历，每晚 21:00 自动提醒';
+        reminderTitle.textContent = '🌙 开启睡前提醒';
+        reminderDesc.textContent = '下载日历文件后需手动添加 → 点击查看教程';
     }
 }
 
@@ -865,10 +865,10 @@ function toggleReminder() {
     const reminderEnabled = localStorage.getItem('bedtime_reminder_enabled');
 
     if (reminderEnabled === 'true') {
-        removeCalendarReminder();
-        localStorage.setItem('bedtime_reminder_enabled', 'false');
-        showToast('睡前提醒已关闭（请手动删除日历中的旧事件）');
+        // 已开启 → 显示教程和选项
+        openReminderGuide();
     } else {
+        // 未开启 → 下载 ICS 文件
         addCalendarReminder();
     }
 }
@@ -887,7 +887,7 @@ function addCalendarReminder() {
         }).then(() => {
             localStorage.setItem('bedtime_reminder_enabled', 'true');
             checkReminderStatus();
-            showToast('✅ 请在系统日历中确认添加');
+            openReminderGuide();
         }).catch((error) => {
             if (error.name !== 'AbortError') {
                 fallbackDownloadICS(icsContent);
@@ -899,7 +899,7 @@ function addCalendarReminder() {
     }
 }
 
-// 下载 ICS 文件作为降级方案
+// 下载 ICS 文件并弹出引导
 function fallbackDownloadICS(icsContent) {
     const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -914,7 +914,25 @@ function fallbackDownloadICS(icsContent) {
 
     localStorage.setItem('bedtime_reminder_enabled', 'true');
     checkReminderStatus();
-    showToast('✅ 已下载日历文件，请点击打开添加到系统日历');
+
+    // 稍等文件下载完成后弹出引导
+    setTimeout(() => {
+        openReminderGuide();
+    }, 500);
+}
+
+// 打开提醒操作引导弹窗
+function openReminderGuide() {
+    const overlay = document.getElementById('reminder-guide-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+}
+
+// 关闭提醒操作引导弹窗
+function closeReminderGuide(event) {
+    // 点击遮罩层关闭（event 为点击事件）或直接调用
+    if (event && event.target !== document.getElementById('reminder-guide-overlay')) return;
+    const overlay = document.getElementById('reminder-guide-overlay');
+    if (overlay) overlay.classList.add('hidden');
 }
 
 // 生成带 RRULE 的每日重复 ICS 日历文件

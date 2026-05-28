@@ -294,6 +294,31 @@
             animation: slideDown 0.3s ease;
         }
 
+        .guide-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .guide-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 400px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
         @keyframes slideDown {
             from {
                 transform: translateX(-50%) translateY(-100px);
@@ -481,6 +506,55 @@
 
     <!-- 底部导航栏 -->
     <div class="tab-bar">
+
+    <!-- 睡前提醒操作引导弹窗 -->
+    <div id="reminder-guide-overlay" class="guide-overlay hidden" onclick="closeReminderGuide(event)">
+        <div class="guide-card" onclick="event.stopPropagation()">
+            <div style="text-align: right; margin-bottom: 10px;">
+                <button onclick="closeReminderGuide()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #999; padding: 0;">×</button>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 15px;">
+                <span style="font-size: 2.5rem;">📲</span>
+            </div>
+
+            <h3 style="text-align: center; color: #333; margin-bottom: 8px;">只需一步，完成设置</h3>
+            <p style="text-align: center; color: #999; font-size: 0.85rem; margin-bottom: 20px;">
+                已下载提醒文件，请按下面的步骤操作
+            </p>
+
+            <div style="background: #f8f9fa; border-radius: 10px; padding: 16px; margin-bottom: 15px;">
+                <h4 style="color: #667eea; margin-bottom: 12px; font-size: 0.95rem;">🍎 iPhone 用户</h4>
+                <ol style="color: #555; font-size: 0.85rem; line-height: 2; padding-left: 18px;">
+                    <li>点击右上角 <strong>"下载"图标</strong> 或 <strong>Safari 地址栏旁</strong> 查看下载</li>
+                    <li>点击下载的 <strong>work-log-reminder.ics</strong> 文件</li>
+                    <li>弹出日历预览 → 点击 <strong>"添加全部"</strong></li>
+                    <li>点击 <strong>"完成"</strong> 即可 ✅</li>
+                </ol>
+            </div>
+
+            <div style="background: #f8f9fa; border-radius: 10px; padding: 16px; margin-bottom: 15px;">
+                <h4 style="color: #667eea; margin-bottom: 12px; font-size: 0.95rem;">🤖 Android 用户</h4>
+                <ol style="color: #555; font-size: 0.85rem; line-height: 2; padding-left: 18px;">
+                    <li>打开 <strong>系统"文件管理器"</strong> 或 <strong>"下载"</strong> 文件夹</li>
+                    <li>找到 <strong>work-log-reminder.ics</strong> 文件</li>
+                    <li>点击文件 → 选择用 <strong>"日历"</strong> 打开</li>
+                    <li>确认添加事件即可 ✅</li>
+                </ol>
+            </div>
+
+            <div style="background: #fff3cd; border-radius: 8px; padding: 12px; margin-bottom: 5px;">
+                <p style="color: #856404; font-size: 0.8rem; line-height: 1.6;">
+                    💡 <strong>提示：</strong>添加成功后，每晚 21:00 系统日历会自动弹窗提醒。<br>
+                    如果下载的文件找不到了，重新点击"开启睡前提醒"即可。
+                </p>
+            </div>
+
+            <button class="btn btn-primary" onclick="closeReminderGuide()" style="margin-top: 12px;">
+                ✅ 我知道了
+            </button>
+        </div>
+    </div>
         <button class="tab-item active" onclick="switchTab('add')">
             <span class="tab-icon">✏️</span>
             <span>记录</span>
