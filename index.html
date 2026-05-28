@@ -321,23 +321,86 @@
     <!-- 登录/注册页面 -->
     <div id="auth-page" class="page" style="display: none;">
         <div class="container">
-            <div class="card">
+            <!-- 登录表单 -->
+            <div class="card" id="login-card">
                 <h3 style="margin-bottom: 20px; color: #333; text-align: center;">🔐 用户登录</h3>
-                
+
                 <div class="form-group">
-                    <label for="username">用户名</label>
-                    <input type="text" id="username" placeholder="请输入用户名">
+                    <label for="login-username">用户名</label>
+                    <input type="text" id="login-username" placeholder="请输入用户名">
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="password">密码</label>
-                    <input type="password" id="password" placeholder="请输入密码">
+                    <label for="login-password">密码</label>
+                    <input type="password" id="login-password" placeholder="请输入密码">
                 </div>
-                
+
                 <button class="btn btn-primary" onclick="handleLogin()" style="margin-bottom: 10px;">🔑 登录</button>
-                <button class="btn btn-secondary" onclick="handleRegister()">📝 注册新账号</button>
-                
-                <p id="auth-message" style="margin-top: 15px; text-align: center; color: #e74c3c; font-size: 0.9rem;"></p>
+                <button class="btn btn-secondary" onclick="showRegisterCard()">📝 注册新账号</button>
+                <p style="margin-top: 12px; text-align: center;">
+                    <a href="javascript:showResetCard()" style="color: #667eea; font-size: 0.9rem; text-decoration: none;">忘记密码?</a>
+                </p>
+                <p id="auth-message" style="margin-top: 10px; text-align: center; color: #e74c3c; font-size: 0.9rem;"></p>
+            </div>
+
+            <!-- 注册表单 -->
+            <div class="card hidden" id="register-card">
+                <h3 style="margin-bottom: 20px; color: #333; text-align: center;">📝 注册新账号</h3>
+
+                <div class="form-group">
+                    <label for="reg-username">用户名</label>
+                    <input type="text" id="reg-username" placeholder="请输入用户名（2-30位中英文/数字）">
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-password">密码</label>
+                    <input type="password" id="reg-password" placeholder="请输入密码（至少6位）">
+                </div>
+
+                <div class="form-group">
+                    <label for="reg-security-answer">🔐 安全问答：你的出生城市是？</label>
+                    <input type="text" id="reg-security-answer" placeholder="找回密码用，请牢记">
+                </div>
+
+                <button class="btn btn-primary" onclick="handleRegister()" style="margin-bottom: 10px;">📝 注册</button>
+                <button class="btn btn-secondary" onclick="showLoginCard()">← 返回登录</button>
+                <p id="reg-message" style="margin-top: 10px; text-align: center; color: #e74c3c; font-size: 0.9rem;"></p>
+            </div>
+
+            <!-- 找回密码表单 -->
+            <div class="card hidden" id="reset-card">
+                <h3 style="margin-bottom: 20px; color: #333; text-align: center;">🔑 找回密码</h3>
+
+                <!-- 步骤1：验证身份 -->
+                <div id="reset-step1">
+                    <div class="form-group">
+                        <label for="reset-username">用户名</label>
+                        <input type="text" id="reset-username" placeholder="请输入你的用户名">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reset-answer">🔐 你的出生城市是？</label>
+                        <input type="text" id="reset-answer" placeholder="请输入注册时填写的答案">
+                    </div>
+
+                    <button class="btn btn-primary" onclick="handleVerifyAnswer()" style="margin-bottom: 10px;">验证身份</button>
+                    <button class="btn btn-secondary" onclick="showLoginCard()">← 返回登录</button>
+                    <p id="reset-message" style="margin-top: 10px; text-align: center; color: #e74c3c; font-size: 0.9rem;"></p>
+                </div>
+
+                <!-- 步骤2：设置新密码（验证成功后显示） -->
+                <div id="reset-step2" class="hidden">
+                    <p style="text-align: center; color: #27ae60; margin-bottom: 15px; font-weight: 600;">✅ 身份验证成功</p>
+
+                    <div class="form-group">
+                        <label for="reset-new-password">新密码</label>
+                        <input type="password" id="reset-new-password" placeholder="请输入新密码（至少6位）">
+                    </div>
+
+                    <button class="btn btn-primary" onclick="handleResetPassword()" style="margin-bottom: 10px;">重置密码</button>
+                    <button class="btn btn-secondary" onclick="showLoginCard()">← 返回登录</button>
+                    <p id="reset-step2-message" style="margin-top: 10px; text-align: center; color: #e74c3c; font-size: 0.9rem;"></p>
+                </div>
             </div>
         </div>
     </div>

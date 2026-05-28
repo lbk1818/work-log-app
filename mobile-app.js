@@ -552,35 +552,64 @@ function showAuthPage() {
     document.querySelector('.tab-bar').style.display = 'none';
     document.getElementById('logout-btn').style.display = 'none';
     document.getElementById('user-info').textContent = 'v7.0 - 多用户 Supabase 版';
-    
+
     // 显示登录页面
     document.getElementById('auth-page').style.display = 'block';
+    showLoginCard();
+}
+
+// 切换认证卡片
+function showLoginCard() {
+    document.getElementById('login-card').classList.remove('hidden');
+    document.getElementById('register-card').classList.add('hidden');
+    document.getElementById('reset-card').classList.add('hidden');
+    clearAuthMessages();
+}
+
+function showRegisterCard() {
+    document.getElementById('login-card').classList.add('hidden');
+    document.getElementById('register-card').classList.remove('hidden');
+    document.getElementById('reset-card').classList.add('hidden');
+    clearAuthMessages();
+}
+
+function showResetCard() {
+    document.getElementById('login-card').classList.add('hidden');
+    document.getElementById('register-card').classList.add('hidden');
+    document.getElementById('reset-card').classList.remove('hidden');
+    document.getElementById('reset-step1').classList.remove('hidden');
+    document.getElementById('reset-step2').classList.add('hidden');
+    clearAuthMessages();
+}
+
+function clearAuthMessages() {
+    const els = ['auth-message', 'reg-message', 'reset-message', 'reset-step2-message'];
+    els.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '';
+    });
 }
 
 // 处理登录
 async function handleLogin() {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
     const messageEl = document.getElementById('auth-message');
-    
+
     if (!username || !password) {
         messageEl.textContent = '请输入用户名和密码';
         return;
     }
-    
+
     messageEl.textContent = '登录中...';
     messageEl.style.color = '#666';
-    
+
     const result = await UserAuth.login(username, password);
-    
+
     if (result.success) {
         messageEl.textContent = '✅ 登录成功，正在跳转...';
         messageEl.style.color = '#27ae60';
-        
-        // 重新加载页面以初始化应用
-        setTimeout(() => {
-            location.reload();
-        }, 1000);
+        setTimeout(() => { location.reload(); }, 1000);
     } else {
         messageEl.textContent = result.message;
         messageEl.style.color = '#e74c3c';
@@ -589,28 +618,93 @@ async function handleLogin() {
 
 // 处理注册
 async function handleRegister() {
-    const username = document.getElementById('username').value.trim();
-    const password = document.getElementById('password').value;
-    const messageEl = document.getElementById('auth-message');
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const securityAnswer = document.getElementById('reg-security-answer').value;
+    const messageEl = document.getElementById('reg-message');
 
     if (!username || !password) {
         messageEl.textContent = '请输入用户名和密码';
         return;
     }
+    if (!securityAnswer.trim()) {
+        messageEl.textContent = '请填写安全问答答案';
+        return;
+    }
 
     messageEl.textContent = '注册中...';
     messageEl.style.color = '#666';
-    
-    const result = await UserAuth.register(username, password);
-    
+
+    const result = await UserAuth.register(username, password, securityAnswer);
+
     if (result.success) {
         messageEl.textContent = '✅ 注册成功，自动登录中...';
         messageEl.style.color = '#27ae60';
-        
-        // 重新加载页面以初始化应用
-        setTimeout(() => {
-            location.reload();
-        }, 1000);
+        setTimeout(() => { location.reload(); }, 1000);
+    } else {
+        messageEl.textContent = result.message;
+        messageEl.style.color = '#e74c3c';
+    }
+}
+
+// 找回密码 - 存储验证通过的 userId
+let resetUserId = null;
+
+// 步骤1：验证安全问答
+async function handleVerifyAnswer() {
+    const username = document.getElementById('reset-username').value.trim();
+    const answer = document.getElementById('reset-answer').value;
+    const messageEl = document.getElementById('reset-message');
+
+    if (!username || !answer) {
+        messageEl.textContent = '请填写用户名和安全答案';
+        return;
+    }
+
+    messageEl.textContent = '验证中...';
+    messageEl.style.color = '#666';
+
+    const result = await UserAuth.verifySecurityAnswer(username, answer);
+
+    if (result.success) {
+        resetUserId = result.userId;
+        document.getElementById('reset-step1').classList.add('hidden');
+        document.getElementById('reset-step2').classList.remove('hidden');
+        document.getElementById('reset-message').textContent = '';
+    } else {
+        messageEl.textContent = result.message;
+        messageEl.style.color = '#e74c3c';
+        resetUserId = null;
+    }
+}
+
+// 步骤2：设置新密码
+async function handleResetPassword() {
+    const newPassword = document.getElementById('reset-new-password').value;
+    const messageEl = document.getElementById('reset-step2-message');
+
+    if (!resetUserId) {
+        showLoginCard();
+        return;
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+        messageEl.textContent = '新密码至少需要 6 位';
+        messageEl.style.color = '#e74c3c';
+        return;
+    }
+
+    messageEl.textContent = '重置中...';
+    messageEl.style.color = '#666';
+
+    const result = await UserAuth.resetPassword(resetUserId, newPassword);
+
+    if (result.success) {
+        messageEl.textContent = '✅ 密码重置成功，请重新登录';
+        messageEl.style.color = '#27ae60';
+        resetUserId = null;
+        // 回到登录页
+        setTimeout(() => { showLoginCard(); }, 1500);
     } else {
         messageEl.textContent = result.message;
         messageEl.style.color = '#e74c3c';

@@ -87,17 +87,26 @@ const UserAuth = {
     },
 
     // 注册用户（Supabase）
-    async register(username, password) {
+    async register(username, password, securityAnswer) {
         try {
             const validationError = this.validateRegisterInput(username, password);
             if (validationError) {
                 return { success: false, message: validationError };
             }
 
-            // 先生成 salt 并哈希密码
+            if (!securityAnswer || securityAnswer.trim().length < 1) {
+                return { success: false, message: '请填写安全问答答案' };
+            }
+
+            // 哈希密码
             const salt = PasswordHasher.generateSalt();
             const passwordHash = await PasswordHasher.hash(password, salt);
             const storedPassword = salt + ':' + passwordHash;
+
+            // 哈希安全问答答案
+            const answerSalt = PasswordHasher.generateSalt();
+            const answerHash = await PasswordHasher.hash(securityAnswer.trim(), answerSalt);
+            const storedAnswer = answerSalt + ':' + answerHash;
 
             // 创建新用户
             const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -113,13 +122,13 @@ const UserAuth = {
                 body: JSON.stringify({
                     id: userId,
                     username: username,
-                    password: storedPassword
+                    password: storedPassword,
+                    security_answer: storedAnswer
                 })
             });
 
             if (!response.ok) {
                 const error = await response.json();
-                // 不暴露具体原因，但 Supabase 唯一约束冲突时返回通用提示
                 if (response.status === 409 || (error && error.code === '23505')) {
                     return { success: false, message: '注册失败，请重试' };
                 }
@@ -137,6 +146,93 @@ const UserAuth = {
         } catch (error) {
             console.error('注册失败:', error);
             return { success: false, message: '注册失败，请重试' };
+        }
+    },
+
+    // 找回密码 - 验证安全问答
+    async verifySecurityAnswer(username, answer) {
+        try {
+            if (!username || !answer) {
+                return { success: false, message: '请填写用户名和答案' };
+            }
+
+            const response = await fetch(
+                `${SUPABASE_CONFIG.url}/rest/v1/users?username=eq.${encodeURIComponent(username)}&select=id,security_answer`,
+                {
+                    headers: {
+                        'apikey': SUPABASE_CONFIG.key,
+                        'Authorization': `Bearer ${SUPABASE_CONFIG.key}`
+                    }
+                }
+            );
+
+            const users = await response.json();
+
+            if (!users || users.length === 0) {
+                // 模拟延时防枚举
+                await PasswordHasher.hash('dummy', '0000000000000000');
+                return { success: false, message: '用户名或安全答案错误' };
+            }
+
+            const user = users[0];
+
+            if (!user.security_answer) {
+                return { success: false, message: '该账号未设置安全问答，无法找回密码' };
+            }
+
+            const parts = (user.security_answer || '').split(':');
+            let valid = false;
+
+            if (parts.length === 2) {
+                valid = await PasswordHasher.verify(answer.trim(), parts[1], parts[0]);
+            } else {
+                // 兼容旧格式（明文或旧版哈希）
+                valid = (user.security_answer === answer.trim());
+            }
+
+            if (!valid) {
+                return { success: false, message: '用户名或安全答案错误' };
+            }
+
+            return { success: true, userId: user.id };
+        } catch (error) {
+            console.error('验证安全答案失败:', error);
+            return { success: false, message: '验证失败，请重试' };
+        }
+    },
+
+    // 重置密码
+    async resetPassword(userId, newPassword) {
+        try {
+            if (!newPassword || newPassword.length < 6) {
+                return { success: false, message: '新密码至少需要 6 位' };
+            }
+
+            const salt = PasswordHasher.generateSalt();
+            const passwordHash = await PasswordHasher.hash(newPassword, salt);
+            const storedPassword = salt + ':' + passwordHash;
+
+            const response = await fetch(
+                `${SUPABASE_CONFIG.url}/rest/v1/users?id=eq.${userId}`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': SUPABASE_CONFIG.key,
+                        'Authorization': `Bearer ${SUPABASE_CONFIG.key}`
+                    },
+                    body: JSON.stringify({ password: storedPassword })
+                }
+            );
+
+            if (!response.ok) {
+                return { success: false, message: '重置密码失败，请重试' };
+            }
+
+            return { success: true, message: '密码重置成功，请重新登录' };
+        } catch (error) {
+            console.error('重置密码失败:', error);
+            return { success: false, message: '重置密码失败，请重试' };
         }
     },
 
