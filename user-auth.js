@@ -55,8 +55,8 @@ const UserAuth = {
         return false;
     },
 
-    // 输入校验
-    validateInput(username, password) {
+    // 注册输入校验（密码要求6位以上）
+    validateRegisterInput(username, password) {
         if (!username || !password) {
             return '用户名和密码不能为空';
         }
@@ -72,10 +72,24 @@ const UserAuth = {
         return null;
     },
 
+    // 登录输入校验（兼容老用户4位密码）
+    validateLoginInput(username, password) {
+        if (!username || !password) {
+            return '用户名和密码不能为空';
+        }
+        if (username.length < 2 || username.length > 30) {
+            return '用户名长度需要 2-30 个字符';
+        }
+        if (!/^[a-zA-Z0-9_一-龥]+$/.test(username)) {
+            return '用户名只能包含中英文、数字和下划线';
+        }
+        return null;
+    },
+
     // 注册用户（Supabase）
     async register(username, password) {
         try {
-            const validationError = this.validateInput(username, password);
+            const validationError = this.validateRegisterInput(username, password);
             if (validationError) {
                 return { success: false, message: validationError };
             }
@@ -129,7 +143,7 @@ const UserAuth = {
     // 用户登录（Supabase）
     async login(username, password) {
         try {
-            const validationError = this.validateInput(username, password);
+            const validationError = this.validateLoginInput(username, password);
             if (validationError) {
                 return { success: false, message: validationError };
             }
