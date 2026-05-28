@@ -2,7 +2,6 @@
 // 部署到 Cloudflare Workers
 
 const WORKER_CONFIG = {
-    // 数据库配置
     dbName: 'work-logs-db',
     tableName: 'logs',
     usersTableName: 'users'
@@ -33,7 +32,7 @@ export default {
             if (pathname === '/api/register' && request.method === 'POST') {
                 return await handleRegister(request, env, corsHeaders);
             }
-            
+
             // 用户登录
             if (pathname === '/api/login' && request.method === 'POST') {
                 return await handleLogin(request, env, corsHeaders);
@@ -66,16 +65,38 @@ export default {
         } catch (error) {
             console.error('Worker Error:', error);
             return new Response(
-                JSON.stringify({ error: '服务器错误', details: error.message }),
+                JSON.stringify({ error: '服务器错误' }),
                 { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
     }
 };
 
+// SHA-256 哈希（Web Crypto API 兼容实现）
+async function sha256(message) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hashPassword(password, salt) {
+    let hash = password + salt;
+    for (let i = 0; i < 1000; i++) {
+        hash = await sha256(hash);
+    }
+    return hash;
+}
+
+function generateSalt() {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // 初始化数据库
 async function initializeDatabase(env) {
-    // 创建日志表
     await env.DB.exec(`
         CREATE TABLE IF NOT EXISTS ${WORKER_CONFIG.tableName} (
             id TEXT PRIMARY KEY,
@@ -89,7 +110,6 @@ async function initializeDatabase(env) {
         )
     `);
 
-    // 创建用户表
     await env.DB.exec(`
         CREATE TABLE IF NOT EXISTS ${WORKER_CONFIG.usersTableName} (
             id TEXT PRIMARY KEY,
@@ -112,32 +132,36 @@ async function handleRegister(request, env, corsHeaders) {
         );
     }
 
-    if (password.length < 4) {
+    if (password.length < 6) {
         return new Response(
-            JSON.stringify({ success: false, message: '密码至少需要 4 位' }),
+            JSON.stringify({ success: false, message: '密码至少需要 6 位' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
 
-    // 检查用户名是否已存在
+    // 检查用户名是否已存在 - 使用通用错误防止用户名枚举
     const existingUser = await env.DB.prepare(
         `SELECT id FROM ${WORKER_CONFIG.usersTableName} WHERE username = ?`
     ).bind(username).first();
 
     if (existingUser) {
         return new Response(
-            JSON.stringify({ success: false, message: '用户名已存在' }),
+            JSON.stringify({ success: false, message: '注册失败，请重试' }),
             { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
 
-    // 创建新用户
+    // 哈希密码
+    const salt = generateSalt();
+    const passwordHash = await hashPassword(password, salt);
+    const storedPassword = salt + ':' + passwordHash;
+
     const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    
+
     await env.DB.prepare(
-        `INSERT INTO ${WORKER_CONFIG.usersTableName} (id, username, password, createdAt) 
+        `INSERT INTO ${WORKER_CONFIG.usersTableName} (id, username, password, createdAt)
          VALUES (?, ?, ?, ?)`
-    ).bind(userId, username, password, Date.now()).run();
+    ).bind(userId, username, storedPassword, Date.now()).run();
 
     return new Response(
         JSON.stringify({ success: true, message: '注册成功', userId: userId }),
@@ -157,12 +181,36 @@ async function handleLogin(request, env, corsHeaders) {
         );
     }
 
-    // 查询用户
     const user = await env.DB.prepare(
         `SELECT id, username, password FROM ${WORKER_CONFIG.usersTableName} WHERE username = ?`
     ).bind(username).first();
 
-    if (!user || user.password !== password) {
+    if (!user) {
+        return new Response(
+            JSON.stringify({ success: false, message: '用户名或密码错误' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+    }
+
+    // 验证密码
+    const parts = (user.password || '').split(':');
+    let valid = false;
+
+    if (parts.length === 2) {
+        valid = await hashPassword(password, parts[0]) === parts[1];
+    } else {
+        // 兼容旧格式明文密码，验证成功后自动升级
+        if (user.password === password) {
+            const salt = generateSalt();
+            const newHash = await hashPassword(password, salt);
+            await env.DB.prepare(
+                `UPDATE ${WORKER_CONFIG.usersTableName} SET password = ? WHERE id = ?`
+            ).bind(salt + ':' + newHash, user.id).run();
+            valid = true;
+        }
+    }
+
+    if (!valid) {
         return new Response(
             JSON.stringify({ success: false, message: '用户名或密码错误' }),
             { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

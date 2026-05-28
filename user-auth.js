@@ -4,6 +4,43 @@ const SUPABASE_CONFIG = {
     key: 'sb_publishable_Dfru_g7NRn9pcbD2RymuTQ_ZlFoM81_'
 };
 
+// 密码哈希工具 - 使用 Web Crypto API (SHA-256 + salt)
+const PasswordHasher = {
+    // 生成随机 salt
+    generateSalt() {
+        const array = new Uint8Array(16);
+        crypto.getRandomValues(array);
+        return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+    },
+
+    // 将字符串转为 ArrayBuffer
+    encodeText(text) {
+        return new TextEncoder().encode(text);
+    },
+
+    // ArrayBuffer 转 hex 字符串
+    bufferToHex(buffer) {
+        return Array.from(new Uint8Array(buffer), b => b.toString(16).padStart(2, '0')).join('');
+    },
+
+    // 使用 SHA-256 哈希密码
+    async hash(password, salt) {
+        const data = this.encodeText(password + salt);
+        // 多次哈希增加破解难度
+        let hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        for (let i = 0; i < 1000; i++) {
+            hashBuffer = await crypto.subtle.digest('SHA-256', hashBuffer);
+        }
+        return this.bufferToHex(hashBuffer);
+    },
+
+    // 验证密码
+    async verify(password, storedHash, salt) {
+        const hash = await this.hash(password, salt);
+        return hash === storedHash;
+    }
+};
+
 const UserAuth = {
     currentUser: null,
 
@@ -18,25 +55,39 @@ const UserAuth = {
         return false;
     },
 
+    // 输入校验
+    validateInput(username, password) {
+        if (!username || !password) {
+            return '用户名和密码不能为空';
+        }
+        if (username.length < 2 || username.length > 30) {
+            return '用户名长度需要 2-30 个字符';
+        }
+        if (!/^[a-zA-Z0-9_一-龥]+$/.test(username)) {
+            return '用户名只能包含中英文、数字和下划线';
+        }
+        if (password.length < 6) {
+            return '密码至少需要 6 位';
+        }
+        return null;
+    },
+
     // 注册用户（Supabase）
     async register(username, password) {
         try {
-            // 检查用户名是否已存在
-            const checkResponse = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/users?username=eq.${username}&select=id`, {
-                headers: {
-                    'apikey': SUPABASE_CONFIG.key,
-                    'Authorization': `Bearer ${SUPABASE_CONFIG.key}`
-                }
-            });
-            
-            const existingUsers = await checkResponse.json();
-            if (existingUsers && existingUsers.length > 0) {
-                return { success: false, message: '用户名已存在' };
+            const validationError = this.validateInput(username, password);
+            if (validationError) {
+                return { success: false, message: validationError };
             }
+
+            // 先生成 salt 并哈希密码
+            const salt = PasswordHasher.generateSalt();
+            const passwordHash = await PasswordHasher.hash(password, salt);
+            const storedPassword = salt + ':' + passwordHash;
 
             // 创建新用户
             const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            
+
             const response = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/users`, {
                 method: 'POST',
                 headers: {
@@ -48,13 +99,17 @@ const UserAuth = {
                 body: JSON.stringify({
                     id: userId,
                     username: username,
-                    password: password
+                    password: storedPassword
                 })
             });
 
             if (!response.ok) {
                 const error = await response.json();
-                return { success: false, message: error.message || '注册失败' };
+                // 不暴露具体原因，但 Supabase 唯一约束冲突时返回通用提示
+                if (response.status === 409 || (error && error.code === '23505')) {
+                    return { success: false, message: '注册失败，请重试' };
+                }
+                return { success: false, message: '注册失败，请重试' };
             }
 
             // 自动登录
@@ -63,7 +118,7 @@ const UserAuth = {
                 userId: userId
             };
             localStorage.setItem('current_user', JSON.stringify(this.currentUser));
-            
+
             return { success: true, message: '注册成功' };
         } catch (error) {
             console.error('注册失败:', error);
@@ -74,7 +129,13 @@ const UserAuth = {
     // 用户登录（Supabase）
     async login(username, password) {
         try {
-            const response = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/users?username=eq.${username}&select=id,password`, {
+            const validationError = this.validateInput(username, password);
+            if (validationError) {
+                return { success: false, message: validationError };
+            }
+
+            // 只查询 id 和 password，不做明码比较
+            const response = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/users?username=eq.${encodeURIComponent(username)}&select=id,password`, {
                 headers: {
                     'apikey': SUPABASE_CONFIG.key,
                     'Authorization': `Bearer ${SUPABASE_CONFIG.key}`
@@ -82,14 +143,41 @@ const UserAuth = {
             });
 
             const users = await response.json();
-            
+
+            // 使用统一错误信息防止用户名枚举
             if (!users || users.length === 0) {
+                // 模拟哈希运算时间，防止时序攻击泄露用户存在信息
+                await PasswordHasher.hash('dummy', '0000000000000000');
                 return { success: false, message: '用户名或密码错误' };
             }
 
             const user = users[0];
-            if (user.password !== password) {
-                return { success: false, message: '用户名或密码错误' };
+
+            // 解析存储的密码 (格式: salt:hash)
+            const parts = (user.password || '').split(':');
+            if (parts.length !== 2) {
+                // 旧格式明文密码兼容
+                if (user.password === password) {
+                    // 自动升级为哈希格式
+                    const salt = PasswordHasher.generateSalt();
+                    const newHash = await PasswordHasher.hash(password, salt);
+                    await fetch(`${SUPABASE_CONFIG.url}/rest/v1/users?id=eq.${user.id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': SUPABASE_CONFIG.key,
+                            'Authorization': `Bearer ${SUPABASE_CONFIG.key}`
+                        },
+                        body: JSON.stringify({ password: salt + ':' + newHash })
+                    });
+                } else {
+                    return { success: false, message: '用户名或密码错误' };
+                }
+            } else {
+                const isValid = await PasswordHasher.verify(password, parts[1], parts[0]);
+                if (!isValid) {
+                    return { success: false, message: '用户名或密码错误' };
+                }
             }
 
             this.currentUser = {
@@ -97,7 +185,7 @@ const UserAuth = {
                 userId: user.id
             };
             localStorage.setItem('current_user', JSON.stringify(this.currentUser));
-            
+
             return { success: true, message: '登录成功' };
         } catch (error) {
             console.error('登录失败:', error);

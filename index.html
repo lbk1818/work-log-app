@@ -246,6 +246,41 @@
             opacity: 0.9;
         }
 
+        .reminder-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 15px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .reminder-card:active {
+            transform: scale(0.98);
+        }
+
+        .reminder-card.active {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .reminder-icon {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .reminder-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .reminder-desc {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
         .toast {
             position: fixed;
             top: 20px;
@@ -367,10 +402,16 @@
             </div>
 
             <div class="card">
-                <h3 style="margin-bottom: 15px; color: #333;"> 导出数据</h3>
+                <h3 style="margin-bottom: 15px; color: #333;">📦 导出数据</h3>
                 <button class="btn btn-primary" onclick="exportToExcel()">
-                    📊 导出文件
+                    📊 导出 Excel
                 </button>
+            </div>
+
+            <div class="reminder-card" id="reminder-card" onclick="toggleReminder()">
+                <div class="reminder-icon"></div>
+                <div class="reminder-title" id="reminder-title">开启睡前提醒</div>
+                <div class="reminder-desc" id="reminder-desc">点击添加到系统日历，每晚 21:00 提醒记录日志</div>
             </div>
         </div>
     </div>
@@ -397,7 +438,7 @@
         if ('caches' in window) {
             caches.keys().then(function(names) {
                 for (let name of names) {
-                    if (name !== 'work-log-v2') {
+                    if (name !== 'work-log-v7.0') {
                         caches.delete(name);
                     }
                 }
@@ -408,10 +449,35 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(registration => {
+                    .then(async registration => {
                         console.log('SW registered:', registration);
+
+                        // 注册 Periodic Background Sync（Android Chrome）
+                        if ('periodicSync' in registration) {
+                            try {
+                                const status = await navigator.permissions.query({
+                                    name: 'periodic-background-sync'
+                                });
+                                if (status.state === 'granted') {
+                                    await registration.periodicSync.register('bedtime-reminder', {
+                                        minInterval: 12 * 60 * 60 * 1000 // 最短12小时触发一次
+                                    });
+                                    console.log('Periodic sync registered');
+                                }
+                            } catch (err) {
+                                console.log('Periodic sync not available:', err.message);
+                            }
+                        }
+
                         // 检查更新
                         registration.update();
+
+                        // 每小时通过 SW 检查一次提醒（保底机制）
+                        setInterval(() => {
+                            if (registration.active) {
+                                registration.active.postMessage({ type: 'CHECK_REMINDER' });
+                            }
+                        }, 60 * 60 * 1000);
                     })
                     .catch(error => {
                         console.log('SW registration failed:', error);

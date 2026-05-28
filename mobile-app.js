@@ -170,10 +170,16 @@ function switchTab(page) {
     // 隐藏所有页面
     document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
     document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-    
+
     // 显示选中页面
     document.getElementById(`${page}-page`).classList.remove('hidden');
-    event.currentTarget.classList.add('active');
+
+    // 激活对应的 tab 按钮
+    const tabButtons = document.querySelectorAll('.tab-item');
+    const tabMap = { 'add': 0, 'list': 1, 'stats': 2 };
+    if (tabButtons[tabMap[page]]) {
+        tabButtons[tabMap[page]].classList.add('active');
+    }
     
     currentPage = page;
     
@@ -204,13 +210,15 @@ function saveLog() {
     
     if (editingLogId) {
         // 编辑模式：更新现有日志
+        const originalLog = Storage.getLogs().find(l => l.id === editingLogId);
         const updatedLog = {
             id: editingLogId,
             date: logDate,
             mainWork: mainWork,
             thoughts: thoughts,
             problems: problems,
-            createdAt: Date.now()
+            createdAt: originalLog ? originalLog.createdAt : Date.now(),
+            updatedAt: Date.now()
         };
         
         Storage.updateLog(updatedLog);
@@ -379,13 +387,21 @@ function renderStats() {
     const now = new Date();
     // 获取今天的日期（本地时间）
     const todayStr = getLocalDate();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    // 计算本周一的日期
+    const dayOfWeek = now.getDay(); // 0=周日, 1=周一, ..., 6=周六
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 如果是周日，往前推6天；否则推到本周一
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    
+    // 计算本月第一天的日期
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     
     // 使用字符串比较，避免时区问题
     const todayCount = logs.filter(log => log.date === todayStr).length;
-    const weekCount = logs.filter(log => new Date(log.date) >= weekAgo).length;
-    const monthCount = logs.filter(log => new Date(log.date) >= monthAgo).length;
+    const weekCount = logs.filter(log => new Date(log.date) >= monday).length;
+    const monthCount = logs.filter(log => new Date(log.date) >= monthStart).length;
     
     document.getElementById('total-count').textContent = logs.length;
     document.getElementById('today-count').textContent = todayCount;
@@ -465,10 +481,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     console.log('=== 页面初始化开始 ===');
     console.log('UserAuth 是否存在:', typeof UserAuth !== 'undefined');
     
-    // 显示当前日期
+    // 显示当前日期和星期
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
-    document.getElementById('current-date').textContent = dateStr;
+    const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+    const weekDay = weekDays[now.getDay()];
+    document.getElementById('current-date').textContent = `${dateStr} ${weekDay}`;
     
     // 初始化用户认证
     UserAuth.init();
@@ -494,18 +512,18 @@ document.addEventListener('DOMContentLoaded', async function() {
 async function showMainApp() {
     // 隐藏登录页面
     document.getElementById('auth-page').style.display = 'none';
-    
+
     // 显示用户信息
     const username = UserAuth.getUsername();
     document.getElementById('user-info').textContent = `用户: ${username}`;
     document.getElementById('logout-btn').style.display = 'block';
-    
+
     // 设置默认日期为今天（本地时间）
     document.getElementById('log-date').value = getLocalDate();
-    
+
     // 初始化：加载用户数据
     await Storage.init();
-    
+
     // 默认显示添加页面
     document.querySelectorAll('.page').forEach(p => {
         if (p.id !== 'auth-page') {
@@ -516,12 +534,15 @@ async function showMainApp() {
     document.getElementById('add-page').classList.remove('hidden');
     document.querySelector('.tab-item').classList.add('active');
     currentPage = 'add';
-    
+
     // 检查是否需要备份提醒
     checkBackupReminder();
-    
-    // 设置睡前提醒
+
+    // 设置睡前提醒（页面内通知）
     setupBedtimeReminder();
+
+    // 更新日历提醒开关状态
+    checkReminderStatus();
 }
 
 // 显示登录页面
@@ -571,17 +592,12 @@ async function handleRegister() {
     const username = document.getElementById('username').value.trim();
     const password = document.getElementById('password').value;
     const messageEl = document.getElementById('auth-message');
-    
+
     if (!username || !password) {
         messageEl.textContent = '请输入用户名和密码';
         return;
     }
-    
-    if (password.length < 4) {
-        messageEl.textContent = '密码至少需要 4 位';
-        return;
-    }
-    
+
     messageEl.textContent = '注册中...';
     messageEl.style.color = '#666';
     
@@ -628,48 +644,54 @@ function checkBackupReminder() {
 }
 
 // 睡前提醒功能
+let reminderTimerInterval = null;
+
 function setupBedtimeReminder() {
-    // 获取上次提醒日期
+    // 清除旧定时器
+    if (reminderTimerInterval) clearInterval(reminderTimerInterval);
+
+    // 首次检查
+    checkAndRemind();
+
+    // 每分钟检查一次是否到达 21:00（页面打开时有效）
+    reminderTimerInterval = setInterval(() => {
+        checkAndRemind();
+    }, 60000);
+
+    // 页面从后台恢复时也检查一次
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            checkAndRemind();
+        }
+    });
+}
+
+function checkAndRemind() {
     const lastReminder = localStorage.getItem('last_bedtime_reminder');
     const today = getLocalDate();
-    
-    // 如果今天已经提醒过，不再提醒
+
+    // 今天已经提醒过，跳过
     if (lastReminder === today) return;
-    
-    // 检查是否有今天的日志
+
+    // 今天已经写过日志，跳过
     const logs = Storage.getLogs();
     const hasTodayLog = logs.some(log => log.date === today);
-    
-    // 如果今天还没有日志，设置提醒
-    if (!hasTodayLog) {
-        // 获取当前时间
-        const now = new Date();
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        
-        // 晚上 9 点到 11 点之间提醒
-        if (currentHour >= 21 && currentHour < 23) {
-            sendBedtimeNotification();
-            localStorage.setItem('last_bedtime_reminder', today);
-        }
-        
-        // 如果现在是晚上 9 点前，设置定时器到 9 点提醒
-        if (currentHour < 21) {
-            const reminderTime = new Date();
-            reminderTime.setHours(21, 0, 0, 0);
-            const timeToReminder = reminderTime.getTime() - now.getTime();
-            
-            if (timeToReminder > 0 && timeToReminder < 12 * 60 * 60 * 1000) { // 12小时内
-                setTimeout(() => {
-                    const logs = Storage.getLogs();
-                    const hasTodayLog = logs.some(log => log.date === today);
-                    if (!hasTodayLog) {
-                        sendBedtimeNotification();
-                        localStorage.setItem('last_bedtime_reminder', today);
-                    }
-                }, timeToReminder);
-            }
-        }
+    if (hasTodayLog) return;
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    // 只在 21:00 - 21:05 之间触发（五分钟窗口，每分钟检查一次必能命中）
+    if (currentHour === 21 && currentMinute >= 0 && currentMinute < 5) {
+        sendBedtimeNotification();
+        localStorage.setItem('last_bedtime_reminder', today);
+    }
+
+    // 21:05 之后还没提醒过且没写日志，补发提醒
+    if (currentHour >= 21 && currentMinute >= 5 && currentHour < 23) {
+        sendBedtimeNotification();
+        localStorage.setItem('last_bedtime_reminder', today);
     }
 }
 
@@ -723,3 +745,140 @@ exportToExcel = function() {
     originalExportToExcel();
     localStorage.setItem('last_backup_time', Date.now().toString());
 };
+
+// ===== 系统日历提醒功能 =====
+
+// 检查提醒状态
+function checkReminderStatus() {
+    const reminderEnabled = localStorage.getItem('bedtime_reminder_enabled');
+    const reminderCard = document.getElementById('reminder-card');
+    const reminderTitle = document.getElementById('reminder-title');
+    const reminderDesc = document.getElementById('reminder-desc');
+
+    if (reminderEnabled === 'true') {
+        reminderCard.classList.add('active');
+        reminderTitle.textContent = '✅ 睡前提醒已开启';
+        reminderDesc.textContent = '点击重新设置提醒';
+    } else {
+        reminderCard.classList.remove('active');
+        reminderTitle.textContent = '开启睡前提醒';
+        reminderDesc.textContent = '添加到系统日历，每晚 21:00 自动提醒';
+    }
+}
+
+// 切换提醒状态
+function toggleReminder() {
+    const reminderEnabled = localStorage.getItem('bedtime_reminder_enabled');
+
+    if (reminderEnabled === 'true') {
+        removeCalendarReminder();
+        localStorage.setItem('bedtime_reminder_enabled', 'false');
+        showToast('睡前提醒已关闭（请手动删除日历中的旧事件）');
+    } else {
+        addCalendarReminder();
+    }
+}
+
+// 添加日历提醒 - 生成带 RRULE 的重复事件
+function addCalendarReminder() {
+    const icsContent = generateRecurringICS();
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const file = new File([blob], 'work-log-reminder.ics', { type: 'text/calendar' });
+
+    // Android: 使用 Web Share API 分享 ICS 文件
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({
+            files: [file],
+            title: '添加每日工作日志提醒'
+        }).then(() => {
+            localStorage.setItem('bedtime_reminder_enabled', 'true');
+            checkReminderStatus();
+            showToast('✅ 请在系统日历中确认添加');
+        }).catch((error) => {
+            if (error.name !== 'AbortError') {
+                fallbackDownloadICS(icsContent);
+            }
+        });
+    } else {
+        // iOS / 桌面端：下载 ICS 文件
+        fallbackDownloadICS(icsContent);
+    }
+}
+
+// 下载 ICS 文件作为降级方案
+function fallbackDownloadICS(icsContent) {
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'work-log-reminder.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    localStorage.setItem('bedtime_reminder_enabled', 'true');
+    checkReminderStatus();
+    showToast('✅ 已下载日历文件，请点击打开添加到系统日历');
+}
+
+// 生成带 RRULE 的每日重复 ICS 日历文件
+function generateRecurringICS() {
+    const formatICSDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}${month}${day}T${hours}${minutes}${seconds}`;
+    };
+
+    const now = new Date();
+    const uid = `worklog-daily-reminder@worklog-app`;
+
+    // 首次事件从今天或明天 21:00 开始
+    const firstEvent = new Date(now);
+    firstEvent.setHours(21, 0, 0, 0);
+    if (now.getHours() >= 21) {
+        firstEvent.setDate(firstEvent.getDate() + 1);
+    }
+
+    const firstEnd = new Date(firstEvent);
+    firstEnd.setMinutes(30);
+
+    return [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Work Log App//Daily Reminder//CN',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'X-WR-CALNAME:工作日志提醒',
+        'X-WR-CALDESC:每晚21:00提醒记录工作日志',
+        'X-WR-TIMEZONE:Asia/Shanghai',
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${formatICSDate(now)}`,
+        `DTSTART;TZID=Asia/Shanghai:${formatICSDate(firstEvent)}`,
+        `DTEND;TZID=Asia/Shanghai:${formatICSDate(firstEnd)}`,
+        'SUMMARY:🌙 记录工作日志',
+        'DESCRIPTION:今天的工作内容记录了吗？\\n\\n打开工作日志 App 记录今天完成的主要工作、思考收获和待解决问题。',
+        'LOCATION:工作日志 App',
+        'RRULE:FREQ=DAILY;INTERVAL=1',
+        'BEGIN:VALARM',
+        'TRIGGER:-PT0M',
+        'ACTION:DISPLAY',
+        'DESCRIPTION:🌙 别忘了记录今天的工作日志！',
+        'END:VALARM',
+        'END:VEVENT',
+        'END:VCALENDAR'
+    ].join('\r\n');
+}
+
+// 移除日历提醒（清除本地状态）
+function removeCalendarReminder() {
+    localStorage.removeItem('bedtime_reminder_enabled');
+    localStorage.removeItem('last_bedtime_reminder');
+    checkReminderStatus();
+}
